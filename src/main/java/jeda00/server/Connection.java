@@ -7,6 +7,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.net.Socket;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -21,13 +23,20 @@ public class Connection extends Thread {
 
     private BufferedReader bufferedReader;
 
+    private PrintStream printStream;
+
     private Consumer<Connection> closeConsumer;
 
     public Connection(Socket socket) throws IOException {
         this.socket = socket;
+
         InputStream is = socket.getInputStream();
         InputStreamReader isr = new InputStreamReader(is);
         this.bufferedReader = new BufferedReader(isr);
+
+        OutputStream os = socket.getOutputStream();
+        this.printStream = new PrintStream(os, true);
+
         this.closeConsumer = null;
     }
 
@@ -38,12 +47,17 @@ public class Connection extends Thread {
         while (true) {
             try {
                 String line = bufferedReader.readLine();
-                if (line == null) {
+                if (line.equals("QUIT") || line == null) {
+                    printStream.println("QUIT");
+
                     logger.info("Connection closed: {}", getID());
                     socket.close();
-                    if (closeConsumer != null) closeConsumer.accept(this);
+                    if (closeConsumer != null)
+                        closeConsumer.accept(this);
                     return;
                 }
+
+                printStream.println("OK");
 
                 System.out.println(line);
             } catch (IOException e) {
