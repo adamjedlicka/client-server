@@ -30,6 +30,8 @@ public class Client {
             String line = scanner.nextLine();
             printStream.println(line);
         }
+
+        scanner.close();
     }
 
     public static void main(String[] args) {
