@@ -1,4 +1,9 @@
 .idea/
+.vscode/
+.settings/
 target/
 out/
 clientserver.iml
+.classpath
+.factorypath
+.project
