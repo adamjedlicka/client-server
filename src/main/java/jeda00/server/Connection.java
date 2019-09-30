@@ -3,17 +3,17 @@ package jeda00.server;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.BufferedReader;
+import jeda00.events.NewMessage;
+import jeda00.util.AsyncReader;
+import jeda00.util.EventBus;
+
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.Socket;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-public class Connection extends Thread {
+public class Connection {
 
     private static final Logger logger = LogManager.getLogger(Connection.class);
 
@@ -21,58 +21,54 @@ public class Connection extends Thread {
 
     private Socket socket;
 
-    private BufferedReader bufferedReader;
+    private EventBus eventBus;
+
+    private AsyncReader asyncReader;
 
     private PrintStream printStream;
 
-    private Consumer<Connection> closeConsumer;
+    private Consumer<Connection> closer;
 
-    public Connection(Socket socket) throws IOException {
+    private int onNewMessageId;
+
+    public Connection(Socket socket, EventBus eventBus) throws IOException {
         this.socket = socket;
+        this.eventBus = eventBus;
 
-        InputStream is = socket.getInputStream();
-        InputStreamReader isr = new InputStreamReader(is);
-        this.bufferedReader = new BufferedReader(isr);
+        this.asyncReader = new AsyncReader(socket.getInputStream(), this::onSocketInput);
+        this.asyncReader.onClose(this::onSocketClose);
 
-        OutputStream os = socket.getOutputStream();
-        this.printStream = new PrintStream(os, true);
+        this.printStream = new PrintStream(socket.getOutputStream(), true);
 
-        this.closeConsumer = null;
+        this.onNewMessageId = this.eventBus.subscribe(NewMessage.class, this::onNewMessage);
     }
 
-    @Override
-    public void run() {
-        logger.info("New connection: {}", getID());
+    public void onClose(Consumer<Connection> closer) {
+        this.closer = closer;
+    }
 
-        while (true) {
-            try {
-                String line = bufferedReader.readLine();
-                if (line.equals("QUIT") || line == null) {
-                    printStream.println("QUIT");
+    private void onSocketInput(String data) {
+        eventBus.emit(new NewMessage(data));
+    }
 
-                    logger.info("Connection closed: {}", getID());
-                    socket.close();
-                    if (closeConsumer != null)
-                        closeConsumer.accept(this);
-                    return;
-                }
+    private void onSocketClose(AsyncReader asyncReader) {
+        this.eventBus.unsubscribe(NewMessage.class, onNewMessageId);
 
-                printStream.println("OK");
-
-                System.out.println(line);
-            } catch (IOException e) {
-                logger.error(e);
-                return;
-            }
+        if (closer != null) {
+            closer.accept(this);
         }
     }
 
-    public void onClose(Consumer<Connection> closeConsumer) {
-        this.closeConsumer = closeConsumer;
+    private void onNewMessage(NewMessage message) {
+        printStream.println(message.getData());
     }
 
     public String getID() {
         return id.toString();
+    }
+
+    public void test(Consumer<AsyncReader> consumer) {
+        System.out.println(consumer.hashCode());
     }
 
 }

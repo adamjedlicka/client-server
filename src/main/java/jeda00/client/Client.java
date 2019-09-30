@@ -3,6 +3,8 @@ package jeda00.client;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import jeda00.util.AsyncReader;
+
 import java.io.*;
 import java.net.Socket;
 import java.util.Scanner;
@@ -13,39 +15,30 @@ public class Client {
 
     private Socket socket;
 
-    private BufferedReader bufferedReader;
+    private AsyncReader socketAsyncReader;
 
     private PrintStream printStream;
 
     public Client() throws IOException {
         this.socket = new Socket("localhost", 8888);
 
-        InputStream is = socket.getInputStream();
-        InputStreamReader isr = new InputStreamReader(is);
-        this.bufferedReader = new BufferedReader(isr);
+        this.socketAsyncReader = new AsyncReader(socket.getInputStream(), this::onSocketInput);
 
-        OutputStream os = socket.getOutputStream();
-        this.printStream = new PrintStream(os, true);
+        this.printStream = new PrintStream(socket.getOutputStream(), true);
     }
 
-    public void start() throws IOException {
-        logger.info("Client starting");
-
+    public void start() {
         Scanner scanner = new Scanner(System.in);
 
-        while (scanner.hasNext()) {
+        while (true) {
             String line = scanner.nextLine();
+
             printStream.println(line);
-
-            String response = bufferedReader.readLine();
-            System.out.println(response);
-
-            if (response.equals("QUIT")) {
-                break;
-            }
         }
+    }
 
-        scanner.close();
+    private void onSocketInput(String data) {
+        System.out.println(data);
     }
 
     public static void main(String[] args) {
